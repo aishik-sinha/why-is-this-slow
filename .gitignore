@@ -1,0 +1,4 @@
+# recorded history of your machine: personal, stays local
+slow.db
+__pycache__/
+.DS_Store
