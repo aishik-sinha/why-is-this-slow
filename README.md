@@ -4,7 +4,7 @@ A small macOS tool that watches your machine and tells you what was really going
 
 It records CPU, memory pressure, disk and network activity, plus each app's CPU, memory and energy use, every 5 seconds. A local dashboard lines up each spike with the apps that were running at that moment, and works out longer-running mysteries: which app has been draining the battery for months, which app chokes the machine every time it opens, and what is filling the disk.
 
-No installs: Python 3 and the commands built into macOS (`top`, `ps`, `ioreg`, `netstat`, `du`). No npm, no build step, no external requests.
+No installs: Python 3 and the commands built into macOS (`top`, `ps`, `ioreg`, `netstat`, `du`). No npm, no build step. The only external request is the pixel font, loaded from Google Fonts.
 
 ## Usage
 
@@ -21,6 +21,8 @@ While it is recording, the dashboard is at <http://127.0.0.1:8765>.
 `install` copies the code to `~/Library/Application Support/why-is-this-slow/app/` and registers a launchd agent, so re-run it after `git pull`.
 
 ## Dashboard
+
+This branch has the isometric pixel-game look: your Mac as a small town, where buildings are the busiest processes, the tank is memory pressure and the belts are disk and network traffic.
 
 - **Live**: the last 10 minutes of CPU, free and compressed memory, swap-ins, disk and network, with the top processes and the apps holding the most memory.
 - **Timeline**: 1 hour to 1 year. Spikes, your marks and app launches sit on a shared time axis. Click any moment to see what was running.
