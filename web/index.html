@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Why is this slow?</title>
+<style>
+:root{
+  --bg1:#eef2f8; --bg2:#b4c0d4; --ink:#101829; --mut:#46526c; --p1:#ffffff; --p2:#dce3ee; --line:#c0c9d9;
+  --rim:linear-gradient(135deg,#fff,#8e9bb3 30%,#f6f8fc 50%,#6c7890 70%,#e3e9f2);
+  --shadow:rgba(30,45,80,.3); --ok:#087a3e; --warn:#9a5b00; --bad:#c81e28; --well:#eef2f8;
+  /* the chart "screens" stay dark in both themes */
+  --lcd:#060b1a; --cyan:#5fe1ff; --violet:#b69cff; --amber:#ffc04d; --red:#ff5a66; --pink:#ff7ad1;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme=light]){
+  --bg1:#18203a; --bg2:#04060d; --ink:#eaf0ff; --mut:#a3afca; --p1:#2b3550; --p2:#141a2a; --line:#36415b;
+  --rim:linear-gradient(135deg,#cfd8ea,#4a556e 30%,#aab6cf 50%,#2c3447 70%,#8693ad);
+  --shadow:rgba(0,0,0,.65); --ok:#4fe38d; --warn:#ffc04d; --bad:#ff6b72; --well:#0d1220;
+}}
+:root[data-theme=dark]{
+  --bg1:#18203a; --bg2:#04060d; --ink:#eaf0ff; --mut:#a3afca; --p1:#2b3550; --p2:#141a2a; --line:#36415b;
+  --rim:linear-gradient(135deg,#cfd8ea,#4a556e 30%,#aab6cf 50%,#2c3447 70%,#8693ad);
+  --shadow:rgba(0,0,0,.65); --ok:#4fe38d; --warn:#ffc04d; --bad:#ff6b72; --well:#0d1220;
+}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);font:14px/1.5 "Lucida Grande",Verdana,"Segoe UI",sans-serif;min-height:100vh;
+  background:radial-gradient(circle at 12% 0,rgba(150,120,255,.38),transparent 38%),
+    radial-gradient(circle at 92% 8%,rgba(60,200,255,.38),transparent 34%),linear-gradient(160deg,var(--bg1),var(--bg2)) fixed}
+h1,h2,h3,.tab,button{font-family:Futura,"Avenir Next","Trebuchet MS",sans-serif}
+h1,h2,h3{margin:0;text-transform:uppercase;font-style:italic;letter-spacing:.08em}
+h1{font-size:24px;font-weight:700;background:linear-gradient(180deg,#fff 0,#dfe7f5 38%,#7d8ba6 50%,#c6d2e8 62%,#fff 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 1px 0 rgba(0,0,0,.6))}
+h2{font-size:14px;margin-bottom:12px} h3{font-size:12px;margin:12px 0 6px;color:var(--mut)}
+main,header{max-width:1120px;margin:0 auto;padding:14px 16px}
+.panel{position:relative;border:2px solid transparent;border-radius:20px;padding:16px;margin-bottom:16px;min-width:0;
+  background:linear-gradient(180deg,var(--p1),var(--p2)) padding-box,var(--rim) border-box;
+  box-shadow:0 8px 22px var(--shadow),inset 0 1px 0 rgba(255,255,255,.55)}
+.top{color:#eaf0ff;overflow:hidden;
+  background:linear-gradient(180deg,#66728e 0,#232b40 47%,#0a0e1a 53%,#2d3854 100%) padding-box,var(--rim) border-box}
+.top::after{content:"";position:absolute;right:38%;top:-40px;width:130px;height:130px;pointer-events:none;opacity:.85;
+  background:radial-gradient(circle,#fff 0 2%,rgba(170,225,255,.7) 6%,transparent 32%),
+    linear-gradient(90deg,transparent,rgba(255,255,255,.9),transparent) center/100% 2px no-repeat,
+    linear-gradient(0deg,transparent,rgba(255,255,255,.9),transparent) center/2px 100% no-repeat}
+.top .mut{color:#b9c6e2}
+.sub{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--cyan)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.mut{color:var(--mut)}
+button,input{font-size:14px;color:inherit}
+button,.tab{position:relative;border:1px solid #0a4fbf;border-radius:999px;padding:7px 16px;min-height:36px;cursor:pointer;color:#fff;
+  text-decoration:none;text-transform:uppercase;letter-spacing:.08em;font-weight:600;text-shadow:0 1px 1px rgba(0,30,90,.7);
+  background:linear-gradient(180deg,#bfeaff 0,#3aa8ff 48%,#0a6cff 52%,#62c8ff 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 5px var(--shadow)}
+button:hover,.tab:hover{filter:brightness(1.08)} button:active{transform:translateY(1px)}
+.quiet,.tab{border-color:#6c7890;color:#17203a;text-shadow:0 1px 0 rgba(255,255,255,.8);
+  background:linear-gradient(180deg,#fff 0,#d3dbe8 48%,#aab5c9 52%,#e6ebf3 100%)}
+.quiet[aria-pressed=true],.tab[aria-current=page]{border-color:#0a4fbf;color:#fff;text-shadow:0 1px 1px rgba(0,30,90,.7);
+  background:linear-gradient(180deg,#bfeaff 0,#3aa8ff 48%,#0a6cff 52%,#62c8ff 100%)}
+#markbtn{border-color:#7a1fb0;padding:9px 22px;font-size:15px;
+  background:linear-gradient(180deg,#ffc9f0 0,#e055d0 48%,#9b2be0 52%,#d98cff 100%)}
+:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+#note{flex:1 1 200px;min-width:0;min-height:36px;border-radius:999px;border:1px solid #6c7890;padding:6px 14px;color:#101829;
+  background:linear-gradient(180deg,#cfd7e4,#fff 40%);box-shadow:inset 0 2px 4px rgba(0,0,0,.25)}
+#status{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:5px 14px;font-weight:700;font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;background:#060b1a;border:1px solid #6c7890;color:var(--red)}
+#status::before{content:"";width:11px;height:11px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,var(--red) 55%);box-shadow:0 0 8px var(--red)}
+#status.on{color:#6dffab} #status.on::before{background:radial-gradient(circle at 35% 30%,#fff,#2fe07c 55%);box-shadow:0 0 8px #2fe07c}
+section[hidden]{display:none}
+.lane{display:grid;grid-template-columns:210px minmax(0,1fr);gap:12px;align-items:center;margin-bottom:8px}
+.lane b{display:block;overflow-wrap:anywhere}
+canvas{display:block;width:100%;height:64px;border-radius:10px;background:var(--lcd);border:1px solid #6c7890;
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.5)}
+.pick canvas{cursor:crosshair} canvas.ev{height:46px}
+.key i{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 4px 0 10px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px}
+.cols .panel{margin:0}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);white-space:nowrap}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums} td.c{overflow-wrap:anywhere;min-width:90px}
+th button{all:unset;cursor:pointer;text-decoration:underline} th button[aria-pressed=true]{color:var(--ink);font-weight:700}
+.hot{color:var(--bad);font-weight:700}
+.bar{height:10px;border-radius:999px;min-width:3px;background:linear-gradient(180deg,#bfeaff,#3aa8ff 48%,#0a6cff 52%,#62c8ff)}
+#tlgrid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;align-items:start}
+#at{background:var(--well);border:1px solid var(--line);border-radius:14px;padding:12px;min-width:0}
+#log{list-style:none;margin:0;padding:0;max-height:340px;overflow:auto}
+#log button{all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;padding:5px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+#log button:hover{background:var(--well)}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-right:8px}
+.tag.spike{color:var(--bad)} .tag.mark{color:#b02fd0} .tag.launch{color:#0a6cff}
+[data-theme=dark] .tag.mark{color:var(--pink)} [data-theme=dark] .tag.launch{color:var(--cyan)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme=light]) .tag.mark{color:var(--pink)} :root:not([data-theme=light]) .tag.launch{color:var(--cyan)} }
+.card{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px}
+.orb{width:40px;height:40px;border-radius:50%;border:1px solid rgba(0,0,0,.4);box-shadow:inset 0 -6px 10px rgba(0,0,0,.35),0 2px 6px var(--shadow);
+  background:radial-gradient(circle at 35% 28%,#fff 0 12%,var(--c) 55%)}
+.card.ok{--c:#2fe07c} .card.warn{--c:#ffb020} .card.bad{--c:#ff3b4a} .card.no_data{--c:#9aa6bd}
+.lvl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.ok .lvl{color:var(--ok)} .warn .lvl{color:var(--warn)} .bad .lvl{color:var(--bad)} .no_data .lvl{color:var(--mut)}
+.verdict{font-size:16px;margin:4px 0 6px;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:minmax(90px,auto) minmax(0,1fr);gap:2px 12px;margin:0}
+dt{color:var(--mut)} dd{margin:0;min-width:0;overflow-wrap:anywhere}
+ul.plain{margin:0;padding-left:20px} #heads li{font-size:16px;margin-bottom:4px}
+footer{text-align:center;font-size:12px;padding:0 16px 24px}
+@media (max-width:760px){
+  #tlgrid{grid-template-columns:minmax(0,1fr)} .lane{grid-template-columns:minmax(0,1fr);gap:2px} .lane b{display:inline;margin-left:8px}
+  h1{font-size:19px} .card{grid-template-columns:minmax(0,1fr)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="panel top">
+    <div class="row" style="justify-content:space-between">
+      <div><h1>Why is this slow?</h1><div class="sub">system detective 2000</div></div>
+      <div class="row"><span id="status" role="status">Connecting</span><button id="theme" class="quiet" type="button">Theme</button></div>
+    </div>
+    <form id="markform" class="row" style="margin-top:14px">
+      <label for="note" class="mut">Note</label>
+      <input id="note" maxlength="200" autocomplete="off" placeholder="what were you doing?">
+      <button id="markbtn" type="submit">It's slow now</button>
+      <span id="markmsg" role="status" class="mut"></span>
+    </form>
+    <nav class="row" aria-label="Sections" style="margin-top:14px">
+      <a class="tab" href="#live">Live</a><a class="tab" href="#timeline">Timeline</a><a class="tab" href="#mysteries">Mysteries</a>
+    </nav>
+  </div>
+</header>
+<main>
+<section id="live">
+  <div class="panel"><h2>Last 10 minutes</h2><div id="livelanes"></div>
+    <p class="mut key" style="margin:6px 0 0">Dashed line = spike limit.<i style="background:var(--red)"></i>over the limit<i style="background:var(--violet)"></i>compressed memory</p></div>
+  <div class="cols">
+    <div class="panel"><h2>Top processes</h2><div id="liveprocs" class="tw"></div></div>
+    <div class="panel"><h2>Biggest memory groups</h2><div id="livemem" class="tw"></div></div>
+  </div>
+</section>
+
+<section id="timeline" hidden>
+  <div class="panel">
+    <h2>Timeline</h2>
+    <div class="row" id="tlranges" role="group" aria-label="Time range"></div>
+    <p id="tlmsg" class="mut" role="status" style="margin:10px 0"></p>
+    <div id="tlgrid">
+      <div>
+        <div class="pick" id="tllanes"></div>
+        <p class="mut" style="margin:6px 0">Click any moment on a chart, or an event below, to see what was running.</p>
+        <h3>Events</h3>
+        <ul id="log"></ul>
+      </div>
+      <div id="at"><h3 style="margin-top:0">At that moment</h3><div id="atbody" class="mut">No moment selected.</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="mysteries" hidden>
+  <div class="panel">
+    <h2>Mysteries</h2>
+    <div class="row" id="myranges" role="group" aria-label="Days of history"></div>
+    <p id="mymsg" class="mut" role="status" style="margin:10px 0"></p>
+    <ul id="heads" class="plain"></ul>
+  </div>
+  <div id="cards"></div>
+</section>
+</main>
+<footer class="mut">Everything on this page comes from this Mac and stays on it.</footer>
+
+<script>
+"use strict";
+// Hard rule: data reaches the page only via textContent / setAttribute / canvas, never parsed as HTML:
+// process names come from other programs.
+const $=id=>document.getElementById(id);
+function el(tag,props,...kids){
+  const e=document.createElement(tag);
+  for(const k in props||{}){ if(k==='text') e.textContent=props[k]; else if(k==='class') e.className=props[k]; else e.setAttribute(k,props[k]); }
+  for(const c of kids) if(c!=null) e.append(c);
+  return e;
+}
+const clear=e=>{e.replaceChildren();return e};
+const isNum=v=>typeof v==='number'&&isFinite(v);
+const F=f=>v=>isNum(v)?f(v):'—';
+const MB=1048576;
+const fPct=F(v=>v.toFixed(0)+'%'), fShare=F(v=>(v*100).toFixed(0)+'%'), f1=F(v=>v.toFixed(1)), fInt=F(v=>Math.round(v).toLocaleString());
+const fB=F(b=>Math.abs(b)>=1073741824?(b/1073741824).toFixed(1)+' GB':(b/MB).toFixed(0)+' MB');
+const fMBs=F(b=>(b/MB).toFixed(1)+' MB/s'), fMB=F(m=>m>=1024?(m/1024).toFixed(1)+' GB':m.toFixed(0)+' MB');
+const fTime=ts=>isNum(ts)?new Date(ts*1000).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
+async function api(path,opt){ const r=await fetch(path,opt); if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }
+const C={cyan:'#5fe1ff',violet:'#b69cff',amber:'#ffc04d',red:'#ff5a66',pink:'#ff7ad1',grid:'rgba(120,200,255,.13)',text:'#cfe6ff'};
+const KIND={cpu:C.red,mem:C.violet,disk:C.amber,net:C.cyan};
+
+// ---------- charts (shared by Live and Timeline) ----------
+const LANES=[
+  {k:'cpu',name:'CPU',fmt:fPct,th:80,max:100},
+  {k:'mem_free',k2:'compressor',name:'Free memory',fmt:fB,low:true},
+  {k:'swapins_s',name:'Swap-ins',fmt:F(v=>v.toFixed(0)+'/s'),th:100}, // 500 per 5s sample
+  {k:'disk_bps',name:'Disk',fmt:fMBs,th:100*MB},
+  {k:'net_bps',name:'Network',fmt:fMBs,th:20*MB},
+];
+function mkLanes(box,onPick){
+  const lanes=LANES.map(d=>{
+    const lv=el('b',{text:'—'}), c=el('canvas',{role:'img','aria-label':d.name+' chart'});
+    box.append(el('div',{class:'lane'},el('div',null,el('span',{class:'mut',text:d.name}),lv),c));
+    return {d,c,lv};
+  });
+  let ev=null;
+  if(onPick){
+    ev=el('canvas',{class:'ev',role:'img','aria-label':'Events: spikes, marks and app launches. Also listed below.'});
+    box.prepend(el('div',{class:'lane'},el('div',null,el('span',{class:'mut',text:'Events'}),el('b',{text:'spikes · marks · launches'})),ev));
+    for(const c of [ev,...lanes.map(o=>o.c)]) c.addEventListener('click',e=>{const r=c.getBoundingClientRect(); onPick(Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)));});
+  }
+  return {lanes,ev};
+}
+function screen(c){ // size the canvas for sharp lines and draw the grid; returns [context, width, height]
+  const dpr=window.devicePixelRatio||1, W=c.clientWidth, H=c.clientHeight;
+  c.width=Math.max(1,W*dpr); c.height=Math.max(1,H*dpr);
+  const g=c.getContext('2d'); g.scale(dpr,dpr); g.strokeStyle=C.grid; g.lineWidth=1; g.beginPath();
+  for(let i=1;i<4;i++){ const y=Math.round(H*i/4)+.5; g.moveTo(0,y); g.lineTo(W,y); }
+  for(let i=1;i<8;i++){ const x=Math.round(W*i/8)+.5; g.moveTo(x,0); g.lineTo(x,H); }
+  g.stroke();
+  return [g,W,H];
+}
+function drawLanes(L,pts,t0,t1,isLive,sel){
+  const span=Math.max(1,t1-t0);
+  let step=Infinity;
+  for(let i=1;i<pts.length;i++){ const d=pts[i].ts-pts[i-1].ts; if(d>0&&d<step) step=d; }
+  const gap=Math.max((isFinite(step)?step:5)*3,span/100); // a longer hole than this is a break in recording, not a line
+  for(const {d,c,lv} of L.lanes){
+    const [g,W,H]=screen(c); if(!W) continue;
+    const X=ts=>(ts-t0)/span*W, vals=k=>pts.map(p=>p[k]).filter(isNum), main=vals(d.k);
+    const ymax=d.max||Math.max(1e-9,...main,...(d.k2?vals(d.k2):[]),(d.th||0)*1.25), Y=v=>H-3-Math.min(1,v/ymax)*(H-8);
+    const series=(k,color,fill)=>{
+      const segs=[[]]; let prev=null;
+      for(const p of pts){ if(!isNum(p[k])) continue; if(prev!=null&&p.ts-prev>gap) segs.push([]); segs[segs.length-1].push(p); prev=p.ts; }
+      for(const s of segs){
+        if(!s.length) continue;
+        g.beginPath(); s.forEach((p,i)=>i?g.lineTo(X(p.ts),Y(p[k])):g.moveTo(X(p.ts),Y(p[k])));
+        if(s.length===1) g.lineTo(X(s[0].ts)+1.5,Y(s[0][k]));
+        g.strokeStyle=color; g.lineWidth=1.6; g.shadowColor=color; g.shadowBlur=6; g.stroke(); g.shadowBlur=0;
+        if(fill){ g.lineTo(X(s[s.length-1].ts),H); g.lineTo(X(s[0].ts),H); g.closePath();
+          const gr=g.createLinearGradient(0,0,0,H); gr.addColorStop(0,'rgba(95,225,255,.38)'); gr.addColorStop(1,'rgba(95,225,255,0)'); g.fillStyle=gr; g.fill(); }
+      }
+    };
+    if(d.k2) series(d.k2,C.violet,false);
+    series(d.k,C.cyan,true);
+    if(d.th){
+      g.strokeStyle=C.amber; g.setLineDash([4,4]); g.beginPath(); g.moveTo(0,Y(d.th)); g.lineTo(W,Y(d.th)); g.stroke(); g.setLineDash([]);
+      g.fillStyle=C.red; for(const p of pts) if(isNum(p[d.k])&&p[d.k]>=d.th){ g.beginPath(); g.arc(X(p.ts),Y(p[d.k]),2.5,0,7); g.fill(); }
+    }
+    if(sel!=null){ g.fillStyle='#fff'; g.fillRect(Math.round(X(sel)),0,1,H); }
+    const mx=main.length?Math.max(...main):null, mn=main.length?Math.min(...main):null, last=main[main.length-1];
+    const more=d.k2&&vals(d.k2).length?' · compressed '+d.fmt(isLive?vals(d.k2).pop():Math.max(...vals(d.k2))):'';
+    lv.textContent=mx==null?'no data':(isLive?d.fmt(last)+' now · '+(d.low?'low '+d.fmt(mn):'peak '+d.fmt(mx)):d.low?'lowest '+d.fmt(mn):'peak '+d.fmt(mx))+more;
+  }
+}
+
+// ---------- tables ----------
+function procTable(box){
+  let key='cpu',procs=[];
+  const cols=[['cpu','CPU %',f1],['mem_mb','Memory',fMB],['power','Energy',f1]];
+  function draw(){
+    clear(box);
+    if(!procs.length){ box.append(el('p',{class:'mut',text:'No process data.'})); return; }
+    const hr=el('tr',null,el('th',{text:'Process'}));
+    for(const [k,name] of cols){
+      const b=el('button',{type:'button','aria-pressed':String(k===key),title:'Sort by '+name,text:name});
+      b.addEventListener('click',()=>{key=k;draw();});
+      hr.append(el('th',{class:'n'},b));
+    }
+    const tb=el('tbody');
+    for(const p of [...procs].sort((a,b)=>(b[key]||0)-(a[key]||0)).slice(0,15)){
+      const tr=el('tr',null,el('td',{class:'c',text:String(p.command??'?')}));
+      for(const [k,,f] of cols) tr.append(el('td',{class:'n'+(k==='cpu'&&p.cpu>=80?' hot':''),text:f(p[k])}));
+      tb.append(tr);
+    }
+    box.append(el('table',null,el('thead',null,hr),tb));
+  }
+  return p=>{procs=Array.isArray(p)?p:[];draw();};
+}
+function memTable(box,mem){
+  clear(box);
+  if(!Array.isArray(mem)||!mem.length){ box.append(el('p',{class:'mut',text:'No memory data yet (taken once a minute).'})); return; }
+  const mx=Math.max(1,...mem.map(m=>m.rss_mb||0)), tb=el('tbody');
+  for(const m of mem.slice(0,15)){
+    const bar=el('div',{class:'bar'}); bar.style.width=Math.round((m.rss_mb||0)/mx*100)+'%';
+    tb.append(el('tr',null,el('td',{class:'c',text:String(m.name??'?')}),el('td',{class:'n',text:fMB(m.rss_mb)}),el('td',{style:'width:35%'},bar)));
+  }
+  box.append(el('table',null,el('thead',null,el('tr',null,el('th',{text:'App'}),el('th',{class:'n',text:'Memory'}),el('th'))),tb));
+}
+
+// ---------- status + mark ----------
+function setStatus(on,text){ const s=$('status'); s.className=on?'on':''; s.textContent=text; }
+$('markform').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const msg=$('markmsg');
+  msg.textContent='Saving...';
+  try{
+    const r=await api('/api/mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:$('note').value.slice(0,200)})});
+    msg.textContent='Marked at '+fTime(r.ts)+'. See Timeline or Mysteries.'; $('note').value='';
+  }catch(err){ msg.textContent='Could not save the mark. Is the recorder running?'; }
+});
+
+// ---------- live ----------
+let live=null;
+const liveL=mkLanes($('livelanes')), liveProcs=procTable($('liveprocs'));
+function renderLive(){
+  const now=isNum(live.now)?live.now:Date.now()/1000;
+  drawLanes(liveL,live.samples||[],now-600,now,true,null);
+  liveProcs(live.procs); memTable($('livemem'),live.mem);
+}
+async function pollLive(){
+  try{
+    live=await api('/api/live');
+    const on=isNum(live.last_sample_age)&&live.last_sample_age<30;
+    setStatus(on,on?'Recording':'Recorder not running');
+    if(tab==='live') renderLive();
+  }catch(e){ setStatus(false,'Recorder not running'); }
+}
+
+// ---------- timeline ----------
+const RANGES={'1h':3600,'6h':21600,'24h':86400,'7d':604800,'30d':2592000,'1y':31536000};
+const tl={range:'24h',d:null,t0:0,t1:0,sel:null};
+const tlL=mkLanes($('tllanes'),f=>{ if(tl.d) selectAt(Math.round(tl.t0+f*(tl.t1-tl.t0))); });
+const atProcs=el('div',{class:'tw'}), atProcT=procTable(atProcs);
+function rangeBtns(box,names,cur,on){
+  for(const n of names){
+    const b=el('button',{type:'button',class:'quiet','aria-pressed':String(n===cur),text:n});
+    b.addEventListener('click',()=>{ for(const o of box.children) o.setAttribute('aria-pressed',String(o===b)); on(n); });
+    box.append(b);
+  }
+}
+rangeBtns($('tlranges'),Object.keys(RANGES),tl.range,n=>{tl.range=n;loadTL();});
+function drawTL(){
+  const d=tl.d; if(!d) return;
+  drawLanes(tlL,d.points||[],tl.t0,tl.t1,false,tl.sel);
+  const [g,W,H]=screen(tlL.ev), X=ts=>(ts-tl.t0)/Math.max(1,tl.t1-tl.t0)*W;
+  g.font='10px "Lucida Grande",Verdana,sans-serif'; g.textBaseline='middle';
+  let free=-1; // launches: a triangle each, a name only where there is room for it
+  g.fillStyle=C.cyan;
+  for(const e of d.launches||[]){ const x=X(e.ts); g.beginPath(); g.moveTo(x,H-12); g.lineTo(x+4,H-3); g.lineTo(x-4,H-3); g.fill();
+    if(x>free){ const t=String(e.app??''); g.fillText(t,x+7,H-8); free=x+12+g.measureText(t).width; } }
+  for(const e of d.spikes||[]){ g.fillStyle=KIND[Array.isArray(e.kinds)?e.kinds[0]:'']||C.red; g.fillRect(Math.round(X(e.ts))-1,3,2,14); }
+  free=-1;
+  for(const e of d.marks||[]){ const x=Math.round(X(e.ts)); g.fillStyle=C.pink; g.fillRect(x-1,0,2,H);
+    if(x>free){ const t=String(e.note||'mark'); g.fillStyle=C.text; g.fillText(t,x+5,24); free=x+10+g.measureText(t).width; } }
+  if(tl.sel!=null){ g.fillStyle='#fff'; g.fillRect(Math.round(X(tl.sel)),0,1,H); }
+}
+function renderLog(){
+  const d=tl.d, ev=[], log=clear($('log'));
+  for(const s of d.spikes||[]) ev.push({ts:s.ts,t:'spike',tag:'Spike',text:[s.detail,s.culprit&&('top process: '+s.culprit)].filter(Boolean).join(' · ')});
+  for(const m of d.marks||[]) ev.push({ts:m.ts,t:'mark',tag:'Mark',text:m.note||'(no note)'});
+  for(const l of d.launches||[]) ev.push({ts:l.ts,t:'launch',tag:'Opened',text:l.app});
+  ev.sort((a,b)=>b.ts-a.ts);
+  if(!ev.length) log.append(el('li',{class:'mut',text:'Nothing happened in this range.'}));
+  for(const e of ev.slice(0,300)){ // shortcut: newest 300 events only, add paging if long ranges need the older ones
+    const b=el('button',{type:'button'},el('span',{class:'tag '+e.t,text:e.tag}),el('span',{class:'mut',text:fTime(e.ts)+'  '}),el('span',{text:String(e.text??'')}));
+    b.addEventListener('click',()=>selectAt(e.ts)); log.append(el('li',null,b));
+  }
+  if(ev.length>300) log.append(el('li',{class:'mut',text:'+ '+(ev.length-300)+' older events not listed. Pick a shorter range.'}));
+}
+async function loadTL(){
+  const to=Math.floor(Date.now()/1000), from=to-RANGES[tl.range];
+  $('tlmsg').textContent='Loading...';
+  try{
+    const d=await api('/api/timeline?from='+from+'&to='+to);
+    Object.assign(tl,{d,t0:from,t1:to,sel:null});
+    $('tlmsg').textContent=(d.points||[]).length?fTime(from)+' to '+fTime(to)+(d.resolution==='hour'?' · hourly averages':''):'Nothing recorded in this range yet.';
+    drawTL(); renderLog();
+  }catch(e){ $('tlmsg').textContent='Cannot reach the recorder. Press a range to retry.'; }
+}
+async function selectAt(ts){
+  tl.sel=ts; drawTL();
+  const body=clear($('atbody')); body.className=''; body.append(el('p',{class:'mut',text:'Loading '+fTime(ts)+'...'}));
+  try{
+    const d=await api('/api/at?ts='+ts);
+    if(tl.sel!==ts) return;
+    clear(body).append(el('p',{class:'verdict',text:fTime(d.ts)}));
+    if(d.resolution==='hour') body.append(el('p',{class:'mut',text:'No per-sample data for that moment: showing that hour\'s averages.'}));
+    body.append(el('h3',{text:'Spikes within 30 seconds'}));
+    const sp=d.spikes||[];
+    if(sp.length){ const ul=el('ul',{class:'plain'}); for(const s of sp) ul.append(el('li',{text:[fTime(s.ts),s.detail,s.culprit&&('top process: '+s.culprit)].filter(Boolean).join(' · ')})); body.append(ul); }
+    else body.append(el('p',{class:'mut',text:'None.'}));
+    body.append(el('h3',{text:'Processes'}),atProcs); atProcT(d.procs);
+    const mem=el('div',{class:'tw'}); body.append(el('h3',{text:'Memory by app'}),mem); memTable(mem,d.mem);
+  }catch(e){ clear(body).append(el('p',{class:'mut',text:'Could not load that moment. Try again.'})); }
+  if(matchMedia('(max-width:760px)').matches) $('at').scrollIntoView({block:'nearest'});
+}
+
+// ---------- mysteries ----------
+let myDays=7;
+rangeBtns($('myranges'),['1d','7d','30d','365d'],'7d',n=>{myDays=parseInt(n);loadMy();});
+const TITLE={memory:'Memory pressure',hogs:'Battery drains',launches:'Apps that choke the machine on launch',disk:'Disk filling up',marks:'Your marks explained'};
+const LVL={ok:'All clear',warn:'Worth a look',bad:'Problem found',no_data:'Not enough data yet'};
+const KEYFMT={median_free:fB,max_compressed:fB,free:fB,per_day:v=>fB(v)+'/day',growth:fB,size:fB,low_share:fShare,presence:fShare,rate:fShare,
+  baseline:fShare,rss_mb:fMB,mem_mb:fMB,ts:fTime,cpu:f1,cpu_avg:f1,score:f1,power:f1,swapins_per_hour:fInt,days_left:fInt};
+const LABEL={rss_mb:'memory',mem_mb:'memory',low_share:'time under 200 MB free',score:'energy impact',presence:'hours active',
+  cpu_avg:'avg CPU %',rate:'choked rate',baseline:'normal rate',ts:'when',kind:'spike type',rows:'details',groups:'biggest apps'};
+const label=q=>LABEL[q]||q.replace(/_/g,' ');
+function renderVal(v,k){
+  if(v==null||v==='') return el('span',{class:'mut',text:'—'});
+  if(Array.isArray(v)){
+    if(!v.length) return el('span',{class:'mut',text:'none'});
+    if(k==='procs') return el('span',{text:v.map(p=>p.command+' '+fPct(p.cpu)).join(', ')});
+    if(v.every(o=>o&&typeof o==='object'&&!Array.isArray(o))){
+      const keys=[...new Set(v.flatMap(Object.keys))], tb=el('tbody');
+      for(const o of v){ const tr=el('tr'); for(const q of keys) tr.append(el('td',null,renderVal(o[q],q))); tb.append(tr); }
+      return el('div',{class:'tw'},el('table',null,el('thead',null,el('tr',null,...keys.map(q=>el('th',{text:label(q)})))),tb));
+    }
+    return el('ul',{class:'plain'},...v.map(x=>el('li',null,renderVal(x,k))));
+  }
+  if(typeof v==='object'){
+    const dl=el('dl'); for(const q of Object.keys(v)) dl.append(el('dt',{text:label(q)}),el('dd',null,renderVal(v[q],q)));
+    return dl;
+  }
+  if(typeof v==='boolean') return el('span',{text:v?'yes':'no'});
+  return el('span',{text:isNum(v)?(KEYFMT[k]||(x=>x.toLocaleString(undefined,{maximumFractionDigits:2})))(v):String(v)});
+}
+function card(key,ins){
+  const level=LVL[ins.level]?ins.level:'no_data', body=el('div',null,el('h2',{text:TITLE[key]||key,style:'margin-bottom:2px'}),el('div',{class:'lvl',text:LVL[level]}));
+  body.append(el('p',{class:'verdict',text:level==='no_data'?'Not enough data yet (need '+(ins.need||'more recording')+').':String(ins.verdict??'')}));
+  const ev={}; for(const k of Object.keys(ins)) if(!['verdict','level','need'].includes(k)) ev[k]=ins[k];
+  if(Object.keys(ev).length) body.append(el('h3',{text:'Evidence'}),renderVal(ev));
+  return el('div',{class:'panel card '+level},el('div',{class:'orb','aria-hidden':'true'}),body);
+}
+async function loadMy(){
+  $('mymsg').textContent='Investigating...';
+  try{
+    const d=await api('/api/insights?days='+myDays);
+    $('mymsg').textContent='Based on the last '+(d.days??myDays)+' day(s) of recording.';
+    const heads=clear($('heads')), cards=clear($('cards'));
+    for(const h of Array.isArray(d.headlines)?d.headlines:[]) heads.append(el('li',{text:String(h)}));
+    if(!heads.children.length) heads.append(el('li',{class:'mut',text:'No problems found so far.'}));
+    for(const k of Object.keys(d)) if(d[k]&&typeof d[k]==='object'&&!Array.isArray(d[k])) cards.append(card(k,d[k]));
+  }catch(e){ $('mymsg').textContent='Cannot reach the recorder. Press a range to retry.'; }
+}
+
+// ---------- tabs, theme, boot ----------
+let tab='live';
+function route(){
+  const h=location.hash.slice(1); tab=['live','timeline','mysteries'].includes(h)?h:'live';
+  for(const s of document.querySelectorAll('main>section')) s.hidden=s.id!==tab;
+  for(const a of document.querySelectorAll('nav a')) a.getAttribute('href')==='#'+tab?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current');
+  if(tab==='timeline') loadTL(); else if(tab==='mysteries') loadMy(); else if(live) renderLive();
+}
+$('theme').addEventListener('click',()=>{
+  const r=document.documentElement, dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme=dark?'light':'dark'; try{localStorage.setItem('theme',r.dataset.theme);}catch(e){}
+});
+try{ const t=localStorage.getItem('theme'); if(t==='light'||t==='dark') document.documentElement.dataset.theme=t; }catch(e){}
+addEventListener('hashchange',route);
+let rz; addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(tab==='live'&&live) renderLive(); else if(tab==='timeline') drawTL(); },150); });
+route(); pollLive(); setInterval(pollLive,5000);
+</script>
+</body>
+</html>
