@@ -22,7 +22,7 @@ While it is recording, the dashboard is at <http://127.0.0.1:8765>.
 
 ## Dashboard
 
-This branch has the isometric pixel-game look: your Mac as a small town, where buildings are the busiest processes, the tank is memory pressure and the belts are disk and network traffic.
+This branch has the isometric pixel-game look: your Mac as a small town, where buildings are the busiest processes, the tank is memory pressure and the belts are disk and network traffic. This iteration uses bigger, crunchier pixels: a low-resolution scene snapped to a limited palette, dark outlines, a dithered sky, and chunkier interface borders.
 
 - **Live**: the last 10 minutes of CPU, free and compressed memory, swap-ins, disk and network, with the top processes and the apps holding the most memory.
 - **Timeline**: 1 hour to 1 year. Spikes, your marks and app launches sit on a shared time axis. Click any moment to see what was running.
