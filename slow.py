@@ -174,7 +174,10 @@ def record():
         sys.exit("already recording (launchd agent running? see slow.py uninstall)")
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # launchd stops us with SIGTERM; still run the finally
     if os.environ.get("SLOW_STOP_ON_EOF"):  # started by the Mac app: exit when it goes away, even if it crashed
-        threading.Thread(target=lambda: (sys.stdin.read(), os.kill(os.getpid(), signal.SIGTERM)), daemon=True).start()
+        # to the main thread itself: a signal sent to the process can land on another thread and leave this one
+        # blocked reading top's output for seconds
+        main = threading.main_thread().ident
+        threading.Thread(target=lambda: (sys.stdin.read(), signal.pthread_kill(main, signal.SIGTERM)), daemon=True).start()
     try:
         from server import make_server
         threading.Thread(target=make_server(path, PORT).serve_forever, daemon=True).start()
