@@ -52,13 +52,15 @@ def size(s):
     return float(m[1]) * UNITS[m[2]] if m else 0.0
 
 
-def parse_block(text):
-    """Parse one sample of `top -l` output into (system dict, [process tuples])."""
+def parse_block(text, now=None):
+    """Parse one sample of `top -l` output into (system dict, [process tuples]). now: when the block arrived."""
     sysd, procs, in_table = {}, [], False
     for line in text.splitlines():
         if re.match(r"\d{4}/\d\d/\d\d \d\d:\d\d:\d\d", line):
             # top's own clock: piped output is buffered, so arrival time would be late
             sysd["ts"] = time.mktime(time.strptime(line.strip(), "%Y/%m/%d %H:%M:%S"))
+            if now:  # local time names the hour that repeats when clocks go back twice: take the one that is now
+                sysd["ts"] += round((now - sysd["ts"]) / 3600) * 3600
         elif line.startswith("Load Avg:"):
             sysd["load1"] = float(line.split()[2].rstrip(","))
         elif line.startswith("CPU usage:"):
@@ -188,16 +190,16 @@ def record():
     cmd = ["top", "-l", "0", "-s", str(INTERVAL), "-stats", "pid,command,cpu,mem,power", "-o", "cpu", "-n", str(TOP_N)]
     top = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, errors="replace")
     print(f"Recording every {INTERVAL}s into {path}. Ctrl+C to stop.", flush=True)
-    block, first, state, prev = [], True, {}, None
+    block, first, state, prev, seen = [], True, {}, None, time.time()
     try:
         for line in top.stdout:
             if line.startswith("Processes:") and block:
                 if not first:  # top's first sample has no CPU deltas yet
-                    sysd, procs = parse_block("".join(block))
+                    sysd, procs = parse_block("".join(block), seen)
                     if cur := store(db, sysd | counters(), procs):
                         observe(db, state, prev, cur, procs, run("ps", "-axo", "pid=,rss=,comm="))
                         prev = cur
-                first, block = False, []
+                first, block, seen = False, [], time.time()
             block.append(line)
     except KeyboardInterrupt:
         pass
@@ -278,7 +280,7 @@ def scan_folders(path):
                 except subprocess.TimeoutExpired:
                     continue
                 db.executemany("INSERT INTO folder VALUES(?,?,?)", [(ts, p, kb) for p, kb in parse_du(out, root)])
-            db.commit()
+                db.commit()  # before the next du: an open write would lock the recorder out for as long as that takes
         time.sleep(600)
 
 

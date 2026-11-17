@@ -161,7 +161,8 @@ class Handler(BaseHTTPRequestHandler):
             note = json.loads(self.rfile.read(length))["note"]
             if not isinstance(note, str):
                 raise ValueError
-        except (ValueError, KeyError, TypeError):
+            note.encode()  # a lone surrogate (\ud800) is valid JSON but cannot be stored
+        except (ValueError, KeyError, TypeError, RecursionError):
             return self.reply(400, {"error": 'body must be JSON like {"note": "text"}'})
         ts = time.time()
         db = connect(self.server.db_path)

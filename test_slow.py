@@ -1,3 +1,4 @@
+import calendar
 import os
 import plistlib
 import sqlite3
@@ -5,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -43,6 +45,16 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(s["swapins"], 46967815)
         self.assertEqual(procs[0], (398, "WindowServer", 14.1, 1040.0, 14.6))
         self.assertEqual(procs[1][1], "Google Chrome He")  # name with spaces survives
+
+    def test_clocks_go_back(self):
+        # 01:30 comes twice that night in New York and top prints no offset: the arrival time says which one it is
+        block = BLOCK.replace("2026/11/16 17:21:13", "2026/11/01 01:30:00")
+        first = calendar.timegm((2026, 11, 1, 5, 30, 0))
+        self.addCleanup(time.tzset)
+        with mock.patch.dict(os.environ, TZ="America/New_York"):
+            time.tzset()
+            self.assertEqual(parse_block(block, first + 1)[0]["ts"], first)
+            self.assertEqual(parse_block(block, first + 3601)[0]["ts"], first + 3600)
 
     def test_counters(self):
         ioreg = '"Statistics" = {"Bytes (Read)"=4000,"Bytes (Write)"=10}\n"Statistics" = {"Bytes (Read)"=1,"Bytes (Write)"=2}'
@@ -99,6 +111,29 @@ class ObserveTest(unittest.TestCase):
 
     def test_parse_du(self):
         self.assertEqual(slow.parse_du("8\t/r/a b\n20\t/r\n", "/r"), [("/r/a b", 8)])
+
+    def test_folder_scan_leaves_db_writable(self):
+        # du can take minutes per folder; a write left open across it would lock the recorder out ("database is locked")
+        class Done(Exception):
+            pass
+
+        def du(cmd, **kw):
+            if cmd[-1] == "/r/two":  # while the second du runs, the recorder stores a sample
+                other = connect(path)
+                other.execute("PRAGMA busy_timeout=0")
+                other.execute("INSERT INTO mark VALUES(1, 'x')")
+                other.commit()
+                other.close()
+            return types.SimpleNamespace(stdout=f"4\t{cmd[-1]}/child\n8\t{cmd[-1]}\n")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "slow.db")
+            with mock.patch.object(slow, "FOLDER_ROOTS", [Path("/r/one"), Path("/r/two")]), \
+                    mock.patch.object(slow.subprocess, "run", du), mock.patch.object(slow.time, "sleep", side_effect=Done):
+                self.assertRaises(Done, slow.scan_folders, path)
+            db = connect(path)
+            self.addCleanup(db.close)
+            self.assertEqual([p for p, in db.execute("SELECT path FROM folder")], ["/r/one/child", "/r/two/child"])
 
     def test_observe(self):
         db, state = memdb(self), {}

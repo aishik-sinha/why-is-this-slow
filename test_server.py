@@ -98,6 +98,8 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/mark", "{not json", JSON)[0], 400)
         self.assertEqual(self.request("POST", "/api/mark", '{"note": 5}', JSON)[0], 400)
         self.assertEqual(self.request("POST", "/api/mark", '["note"]', JSON)[0], 400)
+        self.assertEqual(self.request("POST", "/api/mark", "[" * 4000, JSON)[0], 400)  # deeper than the JSON parser goes
+        self.assertEqual(self.request("POST", "/api/mark", '{"note": "\\ud800"}', JSON)[0], 400)  # cannot be stored as UTF-8
         self.assertEqual(self.request("POST", "/api/mark", json.dumps({"note": "x" * 5000}), JSON)[0], 413)
         self.assertEqual(self.request("POST", "/api/other", note, JSON)[0], 404)
         self.assertEqual(marks(), [])

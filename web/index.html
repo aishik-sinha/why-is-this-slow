@@ -472,7 +472,8 @@ let myDays=7;
 rangeBtns($('myranges'),['1d','7d','30d','365d'],'7d',n=>{myDays=parseInt(n);loadMy();});
 const LVL={ok:'ALL CLEAR',warn:'SUSPICIOUS',bad:'GUILTY',no_data:'NOT ENOUGH DATA YET'};
 const fShare=F(v=>(v*100).toFixed(0)+'%'), fInt=F(v=>Math.round(v).toLocaleString());
-const KEYFMT={median_free:fB,max_compressed:fB,free:fB,per_day:v=>fB(v)+'/day',growth:fB,size:fB,low_share:fShare,presence:fShare,rate:fShare,
+const fGB=F(b=>(b/1e9).toFixed(1)+' GB'); // disk: decimal GB, as in the verdict text and Finder
+const KEYFMT={median_free:fB,max_compressed:fB,free:fGB,per_day:v=>fGB(v)+'/day',growth:fGB,size:fGB,low_share:fShare,presence:fShare,rate:fShare,
   baseline:fShare,rss_mb:fMB,mem_mb:fMB,cpu:f1,cpu_avg:f1,score:f1,power:f1,swapins_per_hour:fInt,days_left:fInt};
 function fmtVal(v,k){
   if(isNum(v)&&KEYFMT[k]) return KEYFMT[k](v);
