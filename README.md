@@ -4,7 +4,7 @@ A small macOS tool that watches your machine and tells you what was really going
 
 It records CPU, memory pressure, disk and network activity, plus each app's CPU, memory and energy use, every 5 seconds. A local dashboard lines up each spike with the apps that were running at that moment, and works out longer-running mysteries: which app has been draining the battery for months, which app chokes the machine every time it opens, and what is filling the disk.
 
-No installs: Python 3 and the commands built into macOS (`top`, `ps`, `ioreg`, `netstat`, `du`). No npm, no build step. The only external request is the pixel font, loaded from Google Fonts.
+No installs: Python 3 and the commands built into macOS (`top`, `ps`, `ioreg`, `netstat`, `du`). No npm, and no build step unless you want the optional Mac app. The only external request is the pixel font, loaded from Google Fonts.
 
 ## Usage
 
@@ -19,6 +19,20 @@ python3 slow.py why 30             # text report on the last 30 minutes
 While it is recording, the dashboard is at <http://127.0.0.1:8765>.
 
 `install` copies the code to `~/Library/Application Support/why-is-this-slow/app/` and registers a launchd agent, so re-run it after `git pull`.
+
+## Mac app
+
+```bash
+./build_app.sh install   # builds "Why is this slow?.app" and copies it to ~/Applications
+```
+
+Then open **Why is this slow?** from `~/Applications` (not from `build/`: there macOS would ask for access to your Desktop). The app shows the dashboard in its own window and records while it is open. The menu bar shows free memory, with **It's Slow Now** one click away.
+
+- Needs Apple's Command Line Tools (`xcode-select --install`) and runs the recorder with their `/usr/bin/python3`.
+- Closing the window keeps recording in the menu bar. Quit stops it.
+- **Start at Login** is in the menu-bar menu. Use it or `slow.py install`, not both; the app is the simpler choice. If both run, the launchd recorder records and the app only shows it. If macOS refuses the toggle, add the app by hand in System Settings > General > Login Items.
+- Rebuild after `git pull`. macOS may then ask again for permissions it had granted, and for the login item.
+- Built for this Mac only: signed ad hoc, not notarized, Apple silicon.
 
 ## Dashboard
 
@@ -42,7 +56,8 @@ The dashboard listens on `127.0.0.1` only and has no login: anything running as 
 ## Tests
 
 ```bash
-python3 -m unittest
+python3 -m unittest   # also checks the app bundle, once built
+mac/smoke.sh          # after ./build_app.sh: the app starts the recorder, and a crashed app leaves none behind
 ```
 
 ## Limits

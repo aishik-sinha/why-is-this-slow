@@ -1,7 +1,10 @@
 import os
 import plistlib
 import sqlite3
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -161,6 +164,24 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(p["ProgramArguments"][1:], [str(slow.APP_DIR / "app" / "slow.py"), "record"])
         self.assertTrue(p["RunAtLoad"] and p["KeepAlive"])
         self.assertEqual(p["Nice"], 10)
+
+    @unittest.skipUnless(sys.platform == "darwin", "needs macOS top")
+    def test_stops_when_parent_goes_away(self):
+        # the Mac app holds the recorder's stdin; EOF there (app quit or crashed) must stop the recorder
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "slow.db")
+            db = connect(path)
+            db.execute("INSERT INTO folder VALUES(?,'seed',0)", (time.time(),))  # fresh scan on record: no `du` started
+            db.commit()
+            db.close()
+            p = subprocess.Popen([sys.executable, "-B", str(Path(__file__).with_name("slow.py")), "record"],
+                                 env={**os.environ, "SLOW_DB": path, "SLOW_STOP_ON_EOF": "1"},
+                                 stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.addCleanup(p.kill)
+            time.sleep(2)
+            self.assertIsNone(p.poll())  # still recording while stdin is open
+            p.stdin.close()
+            self.assertEqual(p.wait(timeout=10), 0)
 
 
 if __name__ == "__main__":
