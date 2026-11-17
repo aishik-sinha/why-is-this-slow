@@ -174,12 +174,19 @@ def record():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)  # one writer per database
     except OSError:
         sys.exit("already recording (launchd agent running? see slow.py uninstall)")
+    children = []  # processes to stop if the lifeline below has to exit the hard way
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # launchd stops us with SIGTERM; still run the finally
     if os.environ.get("SLOW_STOP_ON_EOF"):  # started by the Mac app: exit when it goes away, even if it crashed
-        # to the main thread itself: a signal sent to the process can land on another thread and leave this one
-        # blocked reading top's output for seconds
-        main = threading.main_thread().ident
-        threading.Thread(target=lambda: (sys.stdin.read(), signal.pthread_kill(main, signal.SIGTERM)), daemon=True).start()
+        def lifeline(main=threading.main_thread().ident):
+            sys.stdin.read()
+            # to the main thread itself: a signal sent to the process can land on another thread and leave this one
+            # blocked reading top's output for seconds
+            signal.pthread_kill(main, signal.SIGTERM)
+            time.sleep(2)  # still here: the exit got lost (seen on CI). Every sample is already committed, so just go.
+            for child in children:
+                child.terminate()
+            os._exit(0)
+        threading.Thread(target=lifeline, daemon=True).start()
     try:
         from server import make_server
         threading.Thread(target=make_server(path, PORT).serve_forever, daemon=True).start()
@@ -189,6 +196,7 @@ def record():
     threading.Thread(target=scan_folders, args=(path,), daemon=True).start()
     cmd = ["top", "-l", "0", "-s", str(INTERVAL), "-stats", "pid,command,cpu,mem,power", "-o", "cpu", "-n", str(TOP_N)]
     top = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, errors="replace")
+    children.append(top)
     print(f"Recording every {INTERVAL}s into {path}. Ctrl+C to stop.", flush=True)
     block, first, state, prev, seen = [], True, {}, None, time.time()
     try:
