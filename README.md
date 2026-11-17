@@ -1,10 +1,22 @@
 # Why is this slow?
 
+[![tests](https://github.com/aishik-sinha/why-is-this-slow/actions/workflows/tests.yml/badge.svg)](https://github.com/aishik-sinha/why-is-this-slow/actions/workflows/tests.yml)
+
+<img src="docs/icon.png" width="96" alt="App icon: a pixel-art snail under a question mark">
+
 A small macOS tool that watches your machine and tells you what was really going on when it slowed down.
 
 It records CPU, memory pressure, disk and network activity, plus each app's CPU, memory and energy use, every 5 seconds. A local dashboard lines up each spike with the apps that were running at that moment, and works out longer-running mysteries: which app has been draining the battery for months, which app chokes the machine every time it opens, and what is filling the disk.
 
 No installs: Python 3 and the commands built into macOS (`top`, `ps`, `ioreg`, `netstat`, `du`). No npm, and no build step unless you want the optional Mac app. The only external request is the pixel font, loaded from Google Fonts.
+
+![The Mac app showing the Live tab: an isometric pixel-art town where buildings are the busiest processes](docs/live.jpg)
+
+| Timeline | Mysteries |
+|---|---|
+| ![Timeline tab: charts with spikes, marks and app launches, and what was running at a selected moment](docs/timeline.jpg) | ![Mysteries tab: plain-language verdicts such as memory being the bottleneck](docs/mysteries.jpg) |
+
+The screenshots use invented demo data, not a real machine's history.
 
 ## Usage
 
@@ -70,3 +82,7 @@ mac/smoke.sh          # after ./build_app.sh: the app starts the recorder, and a
 - Not recorded: GPU use and heat throttling (macOS only shows them to admin users), battery percentage, per-process network and disk activity, which app is frontmost.
 - No notifications, no settings file, macOS only.
 - Not yet verified on a real install: how long the folder scan takes, and whether it triggers privacy prompts when run by launchd.
+
+## License
+
+[MIT](LICENSE)

@@ -1,0 +1,13 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: python3 -m unittest -v
+      - name: Build the Mac app
+        run: ./build_app.sh
+      - name: Check the built app bundle
+        run: python3 -m unittest -v test_app
